@@ -1,0 +1,63 @@
+url = "https://www....." #insert web page to scrape data
+path_to_file = r"C:\Users\...." #insert path of web driver
+
+from selenium import webdriver
+import pandas as pd
+import time
+from bs4 import BeautifulSoup
+
+mode = ""
+
+#using scrollby() inside if statement
+if mode != "extract":
+    driver = webdriver.Chrome()
+    driver.maximize_window()
+
+    driver.get(url)
+
+    last_height = 0
+
+    while True:
+        driver.execute_script('window.scrollBy(0, 4500)')
+        time.sleep(10)
+
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        print(str(new_height) + "-" + str(last_height))
+
+        if new_height == last_height:
+            break
+        else:
+            last_height = new_height
+
+    page_source = driver.page_source
+
+    with open(path_to_file + "source.txt", "w", encoding="utf-8") as f:
+        f.write(page_source)
+
+data = []
+
+with open(path_to_file + "source.txt", "r", encoding="utf-8") as f:
+    page_source = f.read()
+
+soup = BeautifulSoup(page_source, features="lxml")
+
+items = soup.find_all("a", class_="product-item-link")
+
+for item in items:
+    item_out = {}
+
+    item_out['product_name'] = item.text.strip() if item.text else 'Default Product Name'
+
+    item_out['Link'] = item.attrs.get('href', 'Default URL')
+
+    price_wrapper = item.find("span", class_="price-wrapper")
+    if price_wrapper:
+        item_out['product_price'] = price_wrapper.get('data-price-amount', 'Default Price')
+    else:
+        item_out['product_price'] = 'Default Price'
+
+    data.append(item_out)
+#saving scraped data into excel
+df = pd.DataFrame(data)
+df.to_excel(path_to_file + "startups.xlsx")
+df.to_csv(path_to_file + "startups.csv", sep=";", index=False)
