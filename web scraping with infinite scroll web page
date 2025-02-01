@@ -1,5 +1,5 @@
-url = "https://www....." #insert web page to scrape data
-path_to_file = r"C:\Users\...." #insert path of web driver
+url = "https://www...." #insert site to web scrape
+path_to_file = r"C:\Users\..." #path of web driver to be use.
 
 from selenium import webdriver
 import pandas as pd
@@ -8,24 +8,32 @@ from bs4 import BeautifulSoup
 
 mode = ""
 
-#using scrollby() inside if statement
 if mode != "extract":
     driver = webdriver.Chrome()
     driver.maximize_window()
-
     driver.get(url)
 
-    last_height = 0
+    start_time = time.time()
+    max_duration = 15 * 60
+
+    last_height = driver.execute_script("return document.body.scrollHeight")
 
     while True:
-        driver.execute_script('window.scrollBy(0, 4500)')
-        time.sleep(10)
+        if time.time() - start_time > max_duration:
+            print("15-minute time limit reached. Stopping scrolling.")
+            break
+
+        driver.execute_script('window.scrollBy(0, 1000)') 
+        time.sleep(4)
 
         new_height = driver.execute_script("return document.body.scrollHeight")
         print(str(new_height) + "-" + str(last_height))
 
         if new_height == last_height:
-            break
+            driver.execute_script('window.scrollBy(0, -1000)')
+            time.sleep(1)
+            driver.execute_script('window.scrollBy(0, 1000)')
+            last_height = new_height
         else:
             last_height = new_height
 
@@ -33,6 +41,8 @@ if mode != "extract":
 
     with open(path_to_file + "source.txt", "w", encoding="utf-8") as f:
         f.write(page_source)
+
+    driver.quit()
 
 data = []
 
@@ -43,21 +53,24 @@ soup = BeautifulSoup(page_source, features="lxml")
 
 items = soup.find_all("a", class_="product-item-link")
 
+data = []
+
 for item in items:
-    item_out = {}
-
-    item_out['product_name'] = item.text.strip() if item.text else 'Default Product Name'
-
-    item_out['Link'] = item.attrs.get('href', 'Default URL')
+    item_out = {
+        "product_name": item.text.strip() if item.text else "Default Product Name",
+        "Link": item.attrs.get("href", "Default URL")
+    }
 
     price_wrapper = item.find("span", class_="price-wrapper")
-    if price_wrapper:
-        item_out['product_price'] = price_wrapper.get('data-price-amount', 'Default Price')
-    else:
-        item_out['product_price'] = 'Default Price'
+    item_out["product_price"] = price_wrapper.get("data-price-amount", "Default Price") if price_wrapper else "Default Price"
+
+    brand_element = item.find("p", string=lambda text: text and "Brand:" in text)
+    item_out["brand"] = brand_element.text.replace("Brand:", "").strip() if brand_element else "Default Brand"
 
     data.append(item_out)
-#saving scraped data into excel
+    data.append(item_out)
+
 df = pd.DataFrame(data)
-df.to_excel(path_to_file + "startups.xlsx")
+df.to_excel(path_to_file + "startups.xlsx", index=False)
 df.to_csv(path_to_file + "startups.csv", sep=";", index=False)
+
